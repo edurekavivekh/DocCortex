@@ -11,24 +11,36 @@ Run with:
 
 Then point Claude Desktop's config at this script (see README section below).
 """
-import logging
-import sys
+import threading
 from pathlib import Path
 from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
 from config import DOCS_DIR
+from logger import get_logger
+from watcher import run_watcher
 
-# IMPORTANT: stdout is reserved exclusively for the MCP JSON-RPC protocol.
-# The shared logger.py writes to sys.stdout, which would corrupt the message
-# stream. Use a dedicated stderr-only logger here instead.
-logger = logging.getLogger("mcp_server")
-logger.setLevel(logging.INFO)
-if not logger.handlers:
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
-    logger.addHandler(handler)
+logger = get_logger("mcp_server")
+
+_watcher_stop_event = threading.Event()
+
+
+def _start_watcher_thread():
+    """
+    Runs the folder watcher (incoming/ -> docs/ conversion) as a daemon
+    thread for the lifetime of this MCP server process. Started once at
+    import time so it's active as soon as Claude Desktop launches this
+    script, with no separate main.py process required.
+    """
+    thread = threading.Thread(
+        target=run_watcher, args=(_watcher_stop_event,), daemon=True
+    )
+    thread.start()
+    logger.info("Background watcher thread started.")
+
+
+_start_watcher_thread()
 
 mcp = FastMCP("doc-assistant")
 

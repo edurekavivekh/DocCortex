@@ -18,8 +18,11 @@ def get_logger(name: str) -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # Console handler
-    console = logging.StreamHandler(sys.stdout)
+    # Console handler — uses stderr, not stdout. This makes the logger safe
+    # to use even from processes that reserve stdout for a protocol stream
+    # (e.g. the MCP server talks JSON-RPC over stdout; writing logs there
+    # would corrupt the message stream).
+    console = logging.StreamHandler(sys.stderr)
     console.setFormatter(fmt)
     logger.addHandler(console)
 
